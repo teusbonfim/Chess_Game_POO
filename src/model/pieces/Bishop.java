@@ -1,3 +1,4 @@
+// ========================= src/model/pieces/Bishop.java =========================
 package model.pieces;
 
 import java.util.ArrayList;
@@ -5,29 +6,29 @@ import java.util.List;
 import model.board.Board;
 import model.board.Position;
 
-public class Queen extends Piece {
+public class Bishop extends Piece {
 
-    public Queen(Board board, boolean isWhite) {
-        super(board, isWhite);
-    }
+    public Bishop(Board b, boolean w) { super(b, w); }
 
     @Override
-    public String getSymbol() {
-        return "Q";
+    public String getSymbol() { return "B"; }
+
+    @Override
+    public Piece copyFor(Board newBoard) {
+        Bishop clone = new Bishop(newBoard, isWhite);
+        clone.moved = this.moved;
+        if (this.position != null) {
+            clone.setPosition(new Position(this.position.getRow(), this.position.getColumn()));
+        }
+        return clone;
     }
 
     @Override
     public List<Position> getPossibleMoves() {
         List<Position> moves = new ArrayList<>();
-        if (position == null || board == null) return moves;
+        if (position == null) return moves;
 
-        // Torre (4 direções)
-        addRay(moves, -1,  0); // cima
-        addRay(moves,  1,  0); // baixo
-        addRay(moves,  0, -1); // esquerda
-        addRay(moves,  0,  1); // direita
-
-        // Bispo (4 diagonais)
+        // Quatro diagonais
         addRay(moves, -1, -1); // noroeste
         addRay(moves, -1,  1); // nordeste
         addRay(moves,  1, -1); // sudoeste
@@ -36,17 +37,7 @@ public class Queen extends Piece {
         return moves;
     }
 
-    @Override
-    public Piece copyFor(Board newBoard) {
-        Queen clone = new Queen(newBoard, this.isWhite);
-        clone.moved = this.moved;
-        if (this.position != null) {
-            clone.setPosition(new Position(this.position.getRow(), this.position.getColumn()));
-        }
-        return clone;
-    }
-
-    private void addRay(List<Position> out, int dRow, int dCol) {
+    private void addRay(List<Position> acc, int dRow, int dCol) {
         int r = position.getRow() + dRow;
         int c = position.getColumn() + dCol;
 
@@ -55,10 +46,10 @@ public class Queen extends Piece {
             Piece occ = board.get(to);
 
             if (occ == null) {
-                out.add(to);
+                acc.add(to);
             } else {
                 if (occ.isWhite() != this.isWhite) {
-                    out.add(to); // captura a primeira peça adversária no raio
+                    acc.add(to); // pode capturar a primeira peça adversária
                 }
                 break; // bloqueia após encontrar qualquer peça
             }
