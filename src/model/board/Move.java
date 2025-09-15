@@ -6,21 +6,21 @@ import model.pieces.Piece;
 
 public class Move {
 
-    private final Position from;
+    public final Position from;
     private final Position to;
-    private final Piece moved;
-    private final Piece captured;
+    public final Piece moving;
+    public final Piece captured;
     private final boolean castleKingSide;
     private final boolean castleQueenSide;
     private final boolean enPassant;
     private final Character promotion; // 'Q','R','B','N' ou null
 
-    public Move(Position from, Position to, Piece moved, Piece captured,
+    public Move(Position from, Position to, Piece moving, Piece captured,
                 boolean castleKingSide, boolean castleQueenSide,
                 boolean enPassant, Character promotion) {
         this.from = from;
         this.to = to;
-        this.moved = moved;
+        this.moving = moving;
         this.captured = captured;
         this.castleKingSide = castleKingSide;
         this.castleQueenSide = castleQueenSide;
@@ -31,7 +31,7 @@ public class Move {
     // --- Getters ---
     public Position getFrom() { return from; }
     public Position getTo() { return to; }
-    public Piece getMoved() { return moved; }
+    public Piece getMoving() { return moving; }
     public Piece getCaptured() { return captured; }
     public boolean isCastleKingSide() { return castleKingSide; }
     public boolean isCastleQueenSide() { return castleQueenSide; }
@@ -43,7 +43,7 @@ public class Move {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(moved != null ? moved.getSymbol() : "?");
+        sb.append(moving != null ? moving.getSymbol() : "?");
         sb.append(from != null ? from : "?");
         sb.append(" -> ");
         sb.append(to != null ? to : "?");
@@ -62,7 +62,7 @@ public class Move {
         Move other = (Move) o;
         return Objects.equals(from, other.from)
                 && Objects.equals(to, other.to)
-                && Objects.equals(moved, other.moved)
+                && Objects.equals(moving, other.moving)
                 && Objects.equals(promotion, other.promotion)
                 && castleKingSide == other.castleKingSide
                 && castleQueenSide == other.castleQueenSide
@@ -71,7 +71,7 @@ public class Move {
 
     @Override
     public int hashCode() {
-        return Objects.hash(from, to, moved, promotion, castleKingSide, castleQueenSide, enPassant);
+        return Objects.hash(from, to, moving, promotion, castleKingSide, castleQueenSide, enPassant);
     }
 
     // --- Fábricas convenientes ---

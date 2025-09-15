@@ -95,4 +95,9 @@ public class Board {
         }
         return b;
     }
+
+    public void put(Position from, Piece moving) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'put'");
+    }
 }

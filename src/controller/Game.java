@@ -3,12 +3,16 @@ package controller;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Stack;
+
 import model.board.Board;
+import model.board.Move;
 import model.board.Position;
 import model.pieces.*;
 
 public class Game {
 
+    private final Stack<Move> historyStack = new Stack<>();
     private Board board;
     private boolean whiteToMove = true;
     private boolean gameOver = false;
@@ -17,13 +21,20 @@ public class Game {
     private Position enPassantTarget = null;
 
     private final List<String> history = new ArrayList<>();
-
+    
     // Public ctor (starts a fresh game)
     public Game() {
         this.board = new Board();
         setupPieces();
     }
 
+public void undoLastMove() {
+    if (!historyStack.isEmpty()) {
+        Move lastMove = historyStack.pop();
+        board.put(lastMove.getTo(), lastMove.captured);
+        board.put(lastMove.from, lastMove.moving);
+    }
+}
     // Private ctor used for snapshots (no setup)
     private Game(boolean empty) { /* intentionally empty */ }
 
@@ -77,6 +88,9 @@ public class Game {
         if (isKing && dCol == 2) {
             int row = from.getRow();
             // Move king
+            // Normal move / capture
+            Piece captured = board.get(to);
+            historyStack.push(new Move(from, to, p, captured, targetIsKing, targetIsKing, targetIsKing, promotion));
             board.set(to, p);
             board.set(from, null);
             p.setMoved(true);
