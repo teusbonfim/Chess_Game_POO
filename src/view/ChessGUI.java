@@ -138,7 +138,7 @@ public class ChessGUI extends JFrame {
         rightPanel.add(histLabel, BorderLayout.NORTH);
         rightPanel.add(historyScroll, BorderLayout.CENTER);
         rightPanel.add(buildSideControls(), BorderLayout.SOUTH);
-        rightPanel.setBackground(new Color(91, 126, 167));
+        rightPanel.setBackground(new Color(120, 40, 40));
 
         add(boardPanel, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
@@ -152,9 +152,9 @@ public class ChessGUI extends JFrame {
             }
         });
 
-        setMinimumSize(new Dimension(920, 680));
+        setMinimumSize(new Dimension(950, 680));
         setLocationRelativeTo(null);
-        getContentPane().setBackground(new Color(47, 46, 71)); // cinza claro
+        getContentPane().setBackground(new Color(168, 68, 78)); // cinza claro
 
         setupAccelerators();
 
@@ -195,7 +195,7 @@ public class ChessGUI extends JFrame {
     private JPanel buildSideControls() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         // Adicione esta linha para mudar a cor de fundo
-        panel.setBackground(new Color(91, 126, 167)); // Exemplo: um cinza claro
+        panel.setBackground(new Color (211, 218, 217)); // Exemplo: um cinza claro
         JButton btnNew = new JButton("Novo Jogo");
         btnNew.addActionListener(e -> doNewGame());
         panel.add(btnNew);
