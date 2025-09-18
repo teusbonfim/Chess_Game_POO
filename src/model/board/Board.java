@@ -1,4 +1,14 @@
 // ========================= src/model/board/Board.java =========================
+
+/**
+ * Board.java
+ * Representa o tabuleiro de xadrez (8x8).
+ *
+ * Principais métodos:
+ * - get/set/remove: manipulação de peças nas posições
+ * - isInside/isEmpty: validações de posição
+ * - placePiece: usado no setup inicial
+ */
 package model.board;
 
 import java.util.ArrayList;
@@ -94,10 +104,5 @@ public class Board {
             }
         }
         return b;
-    }
-
-    public void put(Position from, Piece moving) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'put'");
     }
 }

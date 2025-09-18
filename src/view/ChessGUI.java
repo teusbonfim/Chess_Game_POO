@@ -1,10 +1,9 @@
 // ========================= src/view/ChessGUI.java =========================
+
 package view;
 
-import java.io.IOException;
-import java.net.URL;
-import javax.imageio.ImageIO;
 import controller.Game;
+import ai.IANivel3;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -17,37 +16,51 @@ import model.board.Position;
 import model.pieces.Pawn;
 import model.pieces.Piece;
 
+// Classe principal da interface gráfica do jogo de xadrez
 public class ChessGUI extends JFrame {
     private static final long serialVersionUID = 1L; // evita warning de serialização
 
-    // --- Config de cores/styles ---
-    private static final Color LIGHT_SQ = new Color(240, 220, 180);
-    private static final Color DARK_SQ = new Color(120, 40, 40);
-    private static final Color HILITE_SELECTED = new Color(50, 120, 220);
-    private static final Color HILITE_LEGAL = new Color(20, 140, 60);
-    private static final Color HILITE_LASTMOVE = new Color(220, 170, 30);
+    // --- Temas de cores ---
+    public enum BoardTheme {
+        VERMELHO_BEGE(new Color(240, 220, 180), new Color(120, 40, 40));
+
+        public final Color light, dark;
+
+        BoardTheme(Color light, Color dark) {
+            this.light = light;
+            this.dark = dark;
+        }
+    }
+
+    private BoardTheme currentTheme = BoardTheme.VERMELHO_BEGE;
+    private static final Color HILITE_SELECTED = new Color(255, 237, 41); // cor de seleção
+    private static final Color HILITE_LEGAL = new Color(26, 20, 196); // cor de movimentos legais
+    private static final Color HILITE_LASTMOVE = new Color(220, 170, 30); // cor do último lance
 
     private static final Border BORDER_SELECTED = new MatteBorder(3, 3, 3, 3, HILITE_SELECTED);
     private static final Border BORDER_LEGAL = new MatteBorder(3, 3, 3, 3, HILITE_LEGAL);
     private static final Border BORDER_LASTMOVE = new MatteBorder(3, 3, 3, 3, HILITE_LASTMOVE);
 
-    private final Game game;
+    private final Game game; // lógica do jogo
 
-    private final JPanel boardPanel;
-    private final JButton[][] squares = new JButton[8][8];
+    private final JPanel boardPanel; // painel do tabuleiro
+    private final JButton[][] squares = new JButton[8][8]; // botões das casas
 
-    private final JLabel status;
-    private final JTextArea history;
-    private final JScrollPane historyScroll;
-    private final List<String> capturedWhite = new ArrayList<>();
-    private final List<String> capturedBlack = new ArrayList<>();
+    private final JLabel status; // barra de status inferior
+    private final JTextArea history; // área de histórico de jogadas
+    private final JScrollPane historyScroll; // scroll do histórico
 
-    // Menu / controles
+    private final JPanel capturedWhitePanel;
+    private final JPanel capturedBlackPanel;
+
+    private final List<Piece> capturedWhite = new ArrayList<>();
+    private final List<Piece> capturedBlack = new ArrayList<>();
+
+    // Menu e controles
     private JCheckBoxMenuItem pcAsBlack;
-    private JSpinner depthSpinner;
     private JMenuItem newGameItem, quitItem;
 
-    // Seleção atual e movimentos legais
+    // Controle de seleção e movimentos legais
     private Position selected = null;
     private List<Position> legalForSelected = new ArrayList<>();
 
@@ -57,11 +70,13 @@ public class ChessGUI extends JFrame {
     // IA
     private boolean aiThinking = false;
     private final Random rnd = new Random();
+    private int aiLevel = 0; // 0 = fácil, 1 = médio, 2 = difícil
 
+    // Construtor da interface
     public ChessGUI() {
         super("Alice Através do Espelho | ChessGame");
 
-        // Look&Feel Nimbus
+        // Tenta aplicar o tema Nimbus
         try {
             UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
             SwingUtilities.updateComponentTreeUI(this);
@@ -73,23 +88,22 @@ public class ChessGUI extends JFrame {
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(8, 8));
 
-        // Menu
+        // Menu superior
         setJMenuBar(buildMenuBar());
 
         // Painel do tabuleiro (8x8)
         boardPanel = new JPanel(new GridLayout(8, 8, 0, 0));
-        boardPanel.setBackground(DARK_SQ);
-
+        boardPanel.setBackground(new Color(120, 40, 40));
         boardPanel.setPreferredSize(new Dimension(920, 680));
 
         // Criando as bordas
         Border outerMargin = BorderFactory.createEmptyBorder(18, 18, 18, 18);
-        Border innerBorder = BorderFactory.createMatteBorder(6, 6, 6, 6, LIGHT_SQ);
+        Border innerBorder = BorderFactory.createMatteBorder(6, 6, 6, 6, new Color(240, 220, 180));
 
         // Combinando as bordas e aplicando no painel
         boardPanel.setBorder(BorderFactory.createCompoundBorder(outerMargin, innerBorder));
 
-        // Cria botões das casas
+        // Cria os botões das casas do tabuleiro
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 final int rr = r;
@@ -100,51 +114,111 @@ public class ChessGUI extends JFrame {
                 b.setOpaque(true);
                 b.setBorderPainted(true);
                 b.setContentAreaFilled(true);
-                b.setFont(b.getFont().deriveFont(Font.BOLD, 24f)); // fallback com Unicode
-                b.addActionListener(e -> handleClick(new Position(rr, cc)));
+                b.setFont(b.getFont().deriveFont(Font.BOLD, 24f)); // fallback Unicode
+                b.addActionListener(e -> handleClick(new Position(rr, cc))); // ação de clique
                 squares[r][c] = b;
                 boardPanel.add(b);
             }
         }
 
         // Barra inferior de status
-        status = new JLabel("Vez: Alice");
+        status = new JLabel("Jogada: Alice");
         status.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        status.setFont(new Font("Segoe UI", Font.CENTER_BASELINE, 14));
+        status.setForeground(Color.WHITE);
 
-        // Altere esta linha para uma fonte que suporte Unicode Chess Symbols
-        status.setFont(new Font("Segoe UI Symbol", Font.BOLD, 16)); // Exemplo para Windows
-        // Ou tente "Arial Unicode MS" ou "DejaVu Sans" se "Segoe UI Symbol" não
-        // funcionar
-        status.setForeground(new Color(255, 255, 255)); // Exemplo: cor branca (RGB: 255, 255, 255)
-        // ...
-
-        // Histórico
+        // Histórico de jogadas
         history = new JTextArea(14, 22);
         history.setEditable(false);
-        history.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        // Adicione esta linha para mudar a cor de fundo
-        history.setBackground(new Color(255, 255, 255)); // Um tom de lilás claro
+        history.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+        history.setForeground(Color.BLACK);
+        history.setBackground(new Color(156, 174, 102));
         historyScroll = new JScrollPane(history);
-        historyScroll.setPreferredSize(new Dimension(250, 400)); // Ajuste as dimensões conforme necessário
 
-        // Layout principal: tabuleiro à esquerda, histórico à direita
+        capturedWhitePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
+        capturedBlackPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
+
+        // Painel lateral direito (histórico + controles)
         JPanel rightPanel = new JPanel(new BorderLayout(6, 6));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-        JLabel histLabel = new JLabel("Histórico de lances:");
-        // Alterando a fonte e a cor do JLabel 'histLabel'
-        histLabel.setFont(new Font("Arial", Font.BOLD, 14)); // Exemplo: fonte Arial, negrito, tamanho 14
-        histLabel.setForeground(new Color(255, 255, 255)); // Exemplo: cor branca (RGB: 255, 255, 255)
+        rightPanel.setBackground(new Color(120, 40, 40));
+
+        JPanel capturedPiecesPanel = new JPanel();
+        capturedPiecesPanel.setLayout(new BoxLayout(capturedPiecesPanel, BoxLayout.Y_AXIS));
+        capturedPiecesPanel.setBackground(new Color(240, 220, 180));
+        capturedPiecesPanel.setBorder(new MatteBorder(5, 5, 5, 5, new Color(240, 220, 180)));
+
+        JLabel capturedWhiteLabel = new JLabel("Peças da Rainha de Copas");
+        capturedWhiteLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        capturedWhiteLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        capturedWhiteLabel.setForeground(Color.white);
+
+        JLabel capturedBlackLabel = new JLabel("Peças da Alice ");
+        capturedBlackLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        capturedBlackLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        capturedBlackLabel.setForeground(Color.white);
+
+        capturedWhitePanel.setBackground(new Color(240, 220, 180));
+        capturedBlackPanel.setBackground(new Color(240, 220, 180));
+
+        JPanel capturedTopPanel = new JPanel(new BorderLayout());
+        capturedTopPanel.setBackground(new Color(120, 40, 40));
+        capturedTopPanel.add(capturedWhiteLabel, BorderLayout.NORTH);
+        capturedTopPanel.add(capturedWhitePanel, BorderLayout.CENTER);
+
+        JPanel capturedBottomPanel = new JPanel(new BorderLayout());
+        capturedBottomPanel.setBackground(new Color(120, 40, 40));
+        capturedBottomPanel.add(capturedBlackLabel, BorderLayout.NORTH);
+        capturedBottomPanel.add(capturedBlackPanel, BorderLayout.CENTER);
+
+        rightPanel.add(capturedWhiteLabel, BorderLayout.NORTH);
+        rightPanel.add(capturedWhitePanel, BorderLayout.CENTER);
+        rightPanel.add(capturedBlackLabel, BorderLayout.CENTER); // Será sobreposto
+        rightPanel.add(capturedBlackPanel, BorderLayout.SOUTH);
+
+        // Painel para o histórico e controles
+        JPanel historyAndControls = new JPanel(new BorderLayout(6, 6));
+        historyAndControls.setBackground(new Color(120, 40, 40));
+        JLabel histLabel = new JLabel("Histórico de Jogadas:");
+        histLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        histLabel.setForeground(Color.WHITE);
         histLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
-        rightPanel.add(histLabel, BorderLayout.NORTH);
-        rightPanel.add(historyScroll, BorderLayout.CENTER);
-        rightPanel.add(buildSideControls(), BorderLayout.SOUTH);
-        rightPanel.setBackground(new Color(91, 126, 167));
+
+        historyAndControls.add(histLabel, BorderLayout.NORTH);
+        historyAndControls.add(historyScroll, BorderLayout.CENTER);
+        historyAndControls.add(buildSideControls(), BorderLayout.SOUTH);
+
+        rightPanel.add(capturedPiecesPanel, BorderLayout.NORTH);
+        rightPanel.add(historyAndControls, BorderLayout.CENTER);
+
+        JPanel topRightPanel = new JPanel(new BorderLayout());
+        topRightPanel.setBackground(new Color(120, 40, 40));
+
+        JPanel aliceCapturedContainer = new JPanel(new BorderLayout());
+        aliceCapturedContainer.setBackground(new Color(120, 40, 40));
+        aliceCapturedContainer.add(capturedWhiteLabel, BorderLayout.NORTH);
+        aliceCapturedContainer.add(capturedWhitePanel, BorderLayout.SOUTH);
+
+        JPanel blackCapturedContainer = new JPanel(new BorderLayout());
+        blackCapturedContainer.setBackground(new Color(120, 40, 40));
+        blackCapturedContainer.add(capturedBlackLabel, BorderLayout.NORTH);
+        blackCapturedContainer.add(capturedBlackPanel, BorderLayout.SOUTH);
+
+        JPanel capturedTopSection = new JPanel();
+        capturedTopSection.setLayout(new BoxLayout(capturedTopSection, BoxLayout.Y_AXIS));
+        capturedTopSection.setBackground(new Color(120, 40, 40));
+        capturedTopSection.add(aliceCapturedContainer);
+        capturedTopSection.add(Box.createRigidArea(new Dimension(0, 10)));
+        capturedTopSection.add(blackCapturedContainer);
+
+        rightPanel.remove(capturedPiecesPanel);
+        rightPanel.add(capturedTopSection, BorderLayout.NORTH);
 
         add(boardPanel, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
         add(rightPanel, BorderLayout.EAST);
 
-        // Atualiza ícones conforme a janela/painel muda de tamanho
+        // Atualiza ícones ao redimensionar o painel do tabuleiro
         boardPanel.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -152,76 +226,93 @@ public class ChessGUI extends JFrame {
             }
         });
 
-        setMinimumSize(new Dimension(920, 680));
+        getContentPane().setBackground(Color.DARK_GRAY); // fundo da janela
+        setMinimumSize(new Dimension(1100, 780));
         setLocationRelativeTo(null);
-        getContentPane().setBackground(new Color(47, 46, 71)); // cinza claro
 
+        // Atalhos de teclado: Ctrl+N (novo jogo), Ctrl+Q (sair)
         setupAccelerators();
 
         setVisible(true);
         refresh();
-        maybeTriggerAI();
+        maybeTriggerAI(); // inicia IA se for vez do PC
     }
 
     // ----------------- Menus e controles -----------------
 
+    // Cria a barra de menu superior
     private JMenuBar buildMenuBar() {
         JMenuBar mb = new JMenuBar();
+
         JMenu gameMenu = new JMenu("Menu");
+
         newGameItem = new JMenuItem("Novo Jogo");
         newGameItem.setAccelerator(
                 KeyStroke.getKeyStroke(KeyEvent.VK_N, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         newGameItem.addActionListener(e -> doNewGame());
+
         pcAsBlack = new JCheckBoxMenuItem("PC joga com a Rainha de Copas");
         pcAsBlack.setSelected(false);
-        JMenu depthMenu = new JMenu("Profundidade IA");
-        depthSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 4, 1));
-        depthSpinner.setToolTipText("Profundidade efetiva da IA (heurística não-minimax)");
-        depthMenu.add(depthSpinner);
+
         quitItem = new JMenuItem("Sair");
         quitItem.setAccelerator(
                 KeyStroke.getKeyStroke(KeyEvent.VK_Q, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         quitItem.addActionListener(e -> dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING)));
+
         gameMenu.add(newGameItem);
         gameMenu.addSeparator();
         gameMenu.add(pcAsBlack);
-        gameMenu.add(depthMenu);
         gameMenu.addSeparator();
         gameMenu.add(quitItem);
+
         mb.add(gameMenu);
         return mb;
     }
 
+    // Cria os controles laterais (novo jogo, IA, nível)
     private JPanel buildSideControls() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         // Adicione esta linha para mudar a cor de fundo
-        panel.setBackground(new Color(91, 126, 167)); // Exemplo: um cinza claro
+        panel.setBackground(new Color(120, 40, 40)); // Exemplo: um cinza claro
         JButton btnNew = new JButton("Novo Jogo");
         btnNew.addActionListener(e -> doNewGame());
-        panel.add(btnNew);
-        btnNew.setBackground(new Color(120, 40, 40)); // vermelho escuro
-        btnNew.setForeground(Color.WHITE); // Texto branco
+        btnNew.setBackground(new Color(0, 100, 128)); // verde
+        btnNew.setForeground(Color.WHITE); // texto branco
         btnNew.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnNew.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                btnNew.setBackground(new Color(255, 255, 255)); // verde escuro
+            }
+
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                btnNew.setBackground(new Color(0, 100, 128)); // verde original
+            }
+        });
+        panel.add(btnNew);
 
         JCheckBox cb = new JCheckBox("PC (Rainha de Copas)");
         cb.setSelected(pcAsBlack.isSelected());
-        cb.addActionListener(e -> {
-            pcAsBlack.setSelected(cb.isSelected());
-            maybeTriggerAI();
-        });
+        cb.addActionListener(e -> pcAsBlack.setSelected(cb.isSelected()));
+        cb.setFocusPainted(false);
+        cb.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        cb.setForeground(Color.WHITE);
+
         panel.add(cb);
 
-        panel.add(new JLabel("Nível IA:"));
-        JSpinner sp = new JSpinner(new SpinnerNumberModel(1, 1, 4, 1));
-        sp.setValue(depthSpinner.getValue()); // Garante que o valor inicial seja o mesmo do menu
-        sp.addChangeListener(e -> {
-            depthSpinner.setValue(sp.getValue());
-            maybeTriggerAI();
-        });
-        panel.add(sp);
+        JLabel jl = new JLabel("IA:");
+        jl.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        panel.add(jl);
+        jl.setForeground(Color.WHITE);
+        JComboBox<String> aiLevelBox = new JComboBox<>(new String[] { "Iniciante", "Intermediário", "Experiente" });
+        aiLevelBox.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        aiLevelBox.setSelectedIndex(aiLevel);
+        aiLevelBox.addActionListener(e -> aiLevel = aiLevelBox.getSelectedIndex());
+        panel.add(aiLevelBox);
+
         return panel;
     }
 
+    // Configura atalhos de teclado para novo jogo e sair
     private void setupAccelerators() {
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
                 .put(KeyStroke.getKeyStroke(KeyEvent.VK_N, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
@@ -244,63 +335,79 @@ public class ChessGUI extends JFrame {
         });
     }
 
+    // Inicia um novo jogo
     private void doNewGame() {
         selected = null;
         legalForSelected.clear();
         lastFrom = lastTo = null;
         aiThinking = false;
         game.newGame();
+
+        capturedWhite.clear();
+        capturedBlack.clear();
+        capturedWhitePanel.removeAll();
+        capturedBlackPanel.removeAll();
+        capturedWhitePanel.revalidate();
+        capturedBlackPanel.revalidate();
+        capturedWhitePanel.repaint();
+        capturedBlackPanel.repaint();
+
         refresh();
         maybeTriggerAI();
     }
 
     // ----------------- Interação de tabuleiro -----------------
 
+    // Lida com cliques nas casas do tabuleiro
     private void handleClick(Position clicked) {
         if (game.isGameOver() || aiThinking)
             return;
 
-        // Se for vez do PC (Rainha de Copas) e modo PC ativado, ignore cliques
+        // Se for vez do PC, ignora cliques do usuário
         if (pcAsBlack.isSelected() && !game.whiteToMove())
             return;
 
         Piece p = game.board().get(clicked);
 
         if (selected == null) {
-            // Nada selecionado ainda: só seleciona se for peça da vez
+            // Seleciona peça da vez
             if (p != null && p.isWhite() == game.whiteToMove()) {
                 selected = clicked;
                 legalForSelected = game.legalMovesFrom(selected);
             }
         } else {
             // Já havia uma seleção
-            List<Position> legals = game.legalMovesFrom(selected); // recalc por segurança
+            List<Position> legals = game.legalMovesFrom(selected); // recalcula por segurança
             if (legals.contains(clicked)) {
                 Character promo = null;
                 Piece moving = game.board().get(selected);
-                Piece captured = game.board().get(clicked);
-                // Verifique se uma peça foi capturada
-                if (captured != null) {
-                    if (captured.isWhite()) {
-                        capturedWhite.add(captured.getSymbol());
+                if (moving instanceof Pawn && game.isPromotion(selected, clicked)) {
+                    promo = askPromotion(); // pergunta peça para promoção
+                }
+
+                Piece capturedPiece = game.board().get(clicked);
+                if (capturedPiece != null) {
+                    if (capturedPiece.isWhite()) {
+                        capturedWhite.add(capturedPiece);
                     } else {
-                        capturedBlack.add(captured.getSymbol());
+                        capturedBlack.add(capturedPiece);
                     }
                 }
-                if (moving instanceof Pawn && game.isPromotion(selected, clicked)) {
-                    promo = askPromotion();
-                }
+
                 lastFrom = selected;
                 lastTo = clicked;
+
                 game.move(selected, clicked, promo);
+
                 selected = null;
                 legalForSelected.clear();
+
                 refresh();
                 maybeAnnounceEnd();
                 maybeTriggerAI();
                 return;
             } else if (p != null && p.isWhite() == game.whiteToMove()) {
-                // Troca a seleção para outra peça da vez
+                // Troca seleção para outra peça da vez
                 selected = clicked;
                 legalForSelected = game.legalMovesFrom(selected);
             } else {
@@ -312,6 +419,7 @@ public class ChessGUI extends JFrame {
         refresh();
     }
 
+    // Pergunta ao usuário qual peça promover o peão
     private Character askPromotion() {
         String[] opts = { "Rainha", "Torre", "Bispo", "Cavalo" };
         int ch = JOptionPane.showOptionDialog(
@@ -332,95 +440,105 @@ public class ChessGUI extends JFrame {
     }
 
     // ----------------- IA (não bloqueante) -----------------
-    // Implementação da IA de Nível 1 (aleatória) e Nível 2 (avaliação de posição)
+
+    // Aciona a jogada da IA se for vez do PC
     private void maybeTriggerAI() {
         if (game.isGameOver())
             return;
         if (!pcAsBlack.isSelected())
             return;
         if (game.whiteToMove())
-            return;
+            return; // PC joga de Rainha de Copas
 
         aiThinking = true;
-        status.setText("Vez: Rainha de Copas — pensando...");
+        status.setText("Vez: Rainha de Copas — PC pensando...");
 
-        final int depth = (Integer) depthSpinner.getValue();
+        // Executa IA em thread separada (SwingWorker)
+        new SwingWorker<Void, Void>() {
+            Position aiFrom, aiTo;
 
-        new SwingWorker<Move, Void>() {
             @Override
-            protected Move doInBackground() {
-                List<Move> allMoves = collectAllLegalMovesForSide(false);
-                if (allMoves.isEmpty()) {
-                    return null;
-                }
-                // Se a profundidade for 1, faz um movimento aleatório (Nível 1)
-                if (depth == 1) {
-                    return allMoves.get(rnd.nextInt(allMoves.size()));
-                } else {
-                    // Usa a avaliação para encontrar o melhor lance (Nível 2)
-                    int bestScore = Integer.MAX_VALUE;
-                    Move bestMove = null;
-
-                    for (Move move : allMoves) {
-                        game.move(move.from, move.to, null);
-                        int score = evaluateBoard();
-                        game.undoLastMove();
-
-                        if (score < bestScore) {
+            protected Void doInBackground() {
+                Move chosen = null;
+                if (aiLevel == 0) {
+                    // Fácil: aleatório
+                    var allMoves = collectAllLegalMovesForSide(false);
+                    if (allMoves.isEmpty())
+                        return null;
+                    chosen = allMoves.get(rnd.nextInt(allMoves.size()));
+                } else if (aiLevel == 1) {
+                    // Médio: prioriza capturas e centro
+                    var allMoves = collectAllLegalMovesForSide(false);
+                    if (allMoves.isEmpty())
+                        return null;
+                    int bestScore = Integer.MIN_VALUE;
+                    List<Move> bestList = new ArrayList<>();
+                    for (Move mv : allMoves) {
+                        int score = 0;
+                        Piece target = game.board().get(mv.to);
+                        if (target != null)
+                            score += pieceValue(target);
+                        score += centerBonus(mv.to);
+                        if (score > bestScore) {
                             bestScore = score;
-                            bestMove = move;
+                            bestList.clear();
+                            bestList.add(mv);
+                        } else if (score == bestScore) {
+                            bestList.add(mv);
                         }
                     }
-                    return bestMove;
+                    chosen = bestList.get(rnd.nextInt(bestList.size()));
+                } else if (aiLevel == 2) {
+                    // Difícil: usa IANivel3
+                    IANivel3 iaNivel3 = new IANivel3();
+                    model.board.Move move = iaNivel3.makeMove(game);
+                    if (move != null) {
+                        aiFrom = move.getFrom();
+                        aiTo = move.getTo();
+                        return null;
+                    }
                 }
+                if (chosen != null) {
+                    aiFrom = chosen.from;
+                    aiTo = chosen.to;
+                }
+                return null;
             }
 
             @Override
             protected void done() {
                 try {
-                    Move bestMove = get();
-                    if (bestMove != null && !game.isGameOver() && !game.whiteToMove()) {
-                        lastFrom = bestMove.from;
-                        lastTo = bestMove.to;
-                        Character promo = null;
-                        Piece moving = game.board().get(bestMove.from);
-                        if (moving instanceof Pawn && game.isPromotion(bestMove.from, bestMove.to)) {
-                            promo = 'Q';
-                        }
-                        game.move(bestMove.from, bestMove.to, promo);
-                    }
+                    get();
                 } catch (Exception ignored) {
-                } finally {
-                    aiThinking = false;
-                    refresh();
-                    maybeAnnounceEnd();
                 }
+                if (aiFrom != null && aiTo != null && !game.isGameOver() && !game.whiteToMove()) {
+
+                    Piece capturedPiece = game.board().get(aiTo);
+                    if (capturedPiece != null) {
+                        if (capturedPiece.isWhite()) {
+                            capturedWhite.add(capturedPiece);
+                        } else {
+                            capturedBlack.add(capturedPiece);
+                        }
+                    }
+
+                    lastFrom = aiFrom;
+                    lastTo = aiTo;
+                    Character promo = null;
+                    Piece moving = game.board().get(aiFrom);
+                    if (moving instanceof Pawn && game.isPromotion(aiFrom, aiTo)) {
+                        promo = 'Q';
+                    }
+                    game.move(aiFrom, aiTo, promo);
+                }
+                aiThinking = false;
+                refresh();
+                maybeAnnounceEnd();
             }
         }.execute();
     }
 
-    private int evaluateBoard() {
-        int score = 0;
-        for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                Position pos = new Position(r, c);
-                Piece p = game.board().get(pos);
-                if (p != null) {
-                    int value = pieceValue(p);
-                    // Adiciona bônus para peças avançadas e controle do centro
-                    if (p.isWhite()) {
-                        score += value + centerBonus(pos);
-                        score += (7 - r) * 5; // Bônus para peão avançado branco
-                    } else {
-                        score -= value + centerBonus(pos);
-                        score -= r * 5; // Bônus para peão avançado preto
-                    }
-                }
-            }
-        }
-        return score;
-    }
-
+    // Classe interna para representar um movimento simples (usada pela IA)
     private static class Move {
         final Position from, to;
 
@@ -430,8 +548,12 @@ public class ChessGUI extends JFrame {
         }
     }
 
+    // Coleta todos os movimentos legais para o lado especificado
     private List<Move> collectAllLegalMovesForSide(boolean whiteSide) {
         List<Move> moves = new ArrayList<>();
+        if (whiteSide != game.whiteToMove())
+            return moves;
+
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Position from = new Position(r, c);
@@ -446,6 +568,7 @@ public class ChessGUI extends JFrame {
         return moves;
     }
 
+    // Valor das peças para IA
     private int pieceValue(Piece p) {
         if (p == null)
             return 0;
@@ -465,6 +588,7 @@ public class ChessGUI extends JFrame {
         return 0;
     }
 
+    // Bônus para casas centrais (IA)
     private int centerBonus(Position pos) {
         int r = pos.getRow(), c = pos.getColumn();
         if ((r == 3 || r == 4) && (c == 3 || c == 4))
@@ -473,14 +597,16 @@ public class ChessGUI extends JFrame {
             return 4;
         return 0;
     }
+
     // ----------------- Atualização de UI -----------------
 
+    // Atualiza toda a interface (tabuleiro, ícones, status, histórico)
     private void refresh() {
         // 1) Cores base e limpa bordas
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 boolean light = (r + c) % 2 == 0;
-                Color base = light ? LIGHT_SQ : DARK_SQ;
+                Color base = light ? currentTheme.light : currentTheme.dark;
                 JButton b = squares[r][c];
                 b.setBackground(base);
                 b.setBorder(null);
@@ -488,13 +614,13 @@ public class ChessGUI extends JFrame {
             }
         }
 
-        // 2) Realce último lance
+        // 2) Realce do último lance
         if (lastFrom != null)
             squares[lastFrom.getRow()][lastFrom.getColumn()].setBorder(BORDER_LASTMOVE);
         if (lastTo != null)
             squares[lastTo.getRow()][lastTo.getColumn()].setBorder(BORDER_LASTMOVE);
 
-        // 3) Realce seleção e movimentos legais
+        // 3) Realce da seleção e movimentos legais
         if (selected != null) {
             squares[selected.getRow()][selected.getColumn()].setBorder(BORDER_SELECTED);
             for (Position d : legalForSelected) {
@@ -526,26 +652,16 @@ public class ChessGUI extends JFrame {
                 }
             }
         }
-        // Constrói a string com as peças capturadas
-        StringBuilder capturesText = new StringBuilder(" | Capturas: ");
 
-        // Adiciona as capturas das Brancas (peças pretas capturadas)
-        for (String symbol : capturedBlack) {
-            capturesText.append(toUnicode(symbol, false)).append(" ");
-        }
-
-        // Adiciona as capturas das Pretas (peças brancas capturadas)
-        for (String symbol : capturedWhite) {
-            capturesText.append(toUnicode(symbol, true)).append(" ");
-        }
-
-        // 5) Status e histórico
+        // 5) Atualiza status e histórico
         String side = game.whiteToMove() ? "Alice" : "Rainha de Copas";
         String chk = game.inCheck(game.whiteToMove()) ? " — Xeque!" : "";
         if (aiThinking)
             chk = " — PC pensando...";
+        status.setText("Jogada: " + side + chk);
 
-        status.setText("Vez: " + side + chk + capturesText.toString());
+        // Atualiza cor do histórico conforme tema
+        history.setBackground(currentTheme.light);
 
         StringBuilder sb = new StringBuilder();
         var hist = game.history();
@@ -558,14 +674,61 @@ public class ChessGUI extends JFrame {
         }
         history.setText(sb.toString());
         history.setCaretPosition(history.getDocument().getLength());
+
+        updateCapturedPieces();
     }
 
+    /**
+     * Atualiza os painéis que exibem as peças capturadas.
+     * Limpa os painéis existentes e adiciona os ícones das peças capturadas
+     * de cada lado.
+     */
+    private void updateCapturedPieces() {
+        int iconSize = 32; // Tamanho fixo para as peças capturadas
+        capturedWhitePanel.removeAll();
+        capturedBlackPanel.removeAll();
+
+        // Peças de Alice (brancas) - capturadas pelo Adversário (pretas)
+        for (Piece p : capturedWhite) {
+            char sym = p.getSymbol().charAt(0);
+            ImageIcon icon = ImageUtil.getPieceIcon(p.isWhite(), sym, iconSize);
+            JLabel label = new JLabel();
+            if (icon != null) {
+                label.setIcon(icon);
+            } else {
+                label.setText(toUnicode(p.getSymbol(), p.isWhite()));
+                label.setFont(label.getFont().deriveFont(Font.BOLD, 24f));
+            }
+            capturedWhitePanel.add(label);
+        }
+
+        // Peças da Rainha de Copas (pretas) - capturadas por Alice (brancas)
+        for (Piece p : capturedBlack) {
+            char sym = p.getSymbol().charAt(0);
+            ImageIcon icon = ImageUtil.getPieceIcon(p.isWhite(), sym, iconSize);
+            JLabel label = new JLabel();
+            if (icon != null) {
+                label.setIcon(icon);
+            } else {
+                label.setText(toUnicode(p.getSymbol(), p.isWhite()));
+                label.setFont(label.getFont().deriveFont(Font.BOLD, 24f));
+            }
+            capturedBlackPanel.add(label);
+        }
+
+        capturedWhitePanel.revalidate();
+        capturedBlackPanel.revalidate();
+        capturedWhitePanel.repaint();
+        capturedBlackPanel.repaint();
+    }
+
+    // Exibe mensagem de fim de jogo
     private void maybeAnnounceEnd() {
         if (!game.isGameOver())
             return;
         String msg;
         if (game.inCheck(game.whiteToMove())) {
-            msg = "Xeque-Mate: cortem-lhes a cabeça!" + (game.whiteToMove() ? "Alice" : "Rainha de Copas")
+            msg = "Xeque-mate! Cortem-lhes a cabeça!" + (game.whiteToMove() ? "Alice" : "Rainha de Copas")
                     + " estão em mate.";
         } else {
             msg = "Empate por afogamento (stalemate).";
@@ -573,6 +736,7 @@ public class ChessGUI extends JFrame {
         JOptionPane.showMessageDialog(this, msg, "Fim de Jogo", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    // Retorna o Unicode da peça (fallback)
     private String toUnicode(String sym, boolean white) {
         return switch (sym) {
             case "K" -> white ? "\u2654" : "\u265A";
@@ -585,6 +749,7 @@ public class ChessGUI extends JFrame {
         };
     }
 
+    // Calcula o tamanho ideal do ícone da peça
     private int computeSquareIconSize() {
         JButton b = squares[0][0];
         int w = Math.max(1, b.getWidth());
@@ -595,32 +760,7 @@ public class ChessGUI extends JFrame {
         return Math.max(24, side - 8);
     }
 
-    private Icon loadPieceIcon(String key) {
-        String resourcePath = "/resources/" + key + ".png";
-        try {
-            URL url = getClass().getResource(resourcePath);
-            if (url != null) {
-                Image img = ImageIO.read(url).getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-                return new ImageIcon(img);
-            }
-            String[] fallbacks = new String[] {
-                    "resources/" + key + ".png",
-                    "../resources/" + key + ".png",
-                    "./resources/" + key + ".png"
-            };
-            for (String fp : fallbacks) {
-                java.io.File f = new java.io.File(fp);
-                if (f.exists()) {
-                    Image img = ImageIO.read(f).getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-                    return new ImageIcon(img);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
+    // Ponto de entrada do programa
     public static void main(String[] args) {
         SwingUtilities.invokeLater(ChessGUI::new);
     }

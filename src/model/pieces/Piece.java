@@ -1,4 +1,17 @@
 // ========================= src/model/pieces/Piece.java =========================
+
+/**
+ * Piece.java
+ * Classe abstrata para peças de xadrez.
+ *
+ * Principais métodos:
+ * - getPossibleMoves: retorna movimentos possíveis
+ * - getAttacks: casas atacadas
+ * - getSymbol: símbolo da peça
+ * - copyFor: fábrica de cópia para outro tabuleiro
+ *
+ * Utilizada como base para as peças concretas (King, Queen, etc).
+ */
 package model.pieces;
 
 
